@@ -1,134 +1,202 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+// Import necessary modules from Obsidian API
+import { App, Notice, Plugin, TFile, TFolder } from 'obsidian';
 
-// Remember to rename these classes and interfaces!
+// Define a class that extends the Plugin class from Obsidian
+export default class CustomIndexGeneratorPlugin extends Plugin {
 
-interface MyPluginSettings {
-	mySetting: string;
+  // The onload method is called when the plugin is loaded by Obsidian
+  async onload() {
+    // Add a ribbon icon to the Obsidian interface
+    // 'sheets-in-box' is the icon name, 'Sample Plugin' is the hover text
+    const ribbonIconEl = this.addRibbonIcon('sheets-in-box', 'Sample Plugin', async (evt: MouseEvent) => {
+      // Array of folder paths to scan
+      const folderPaths = ["Resources", "General", "Areas", "Archives", "Clippings", "Projects"];
+      
+      // Process each folder in the array
+      for (const folderPath of folderPaths) {
+        // The note title will match the folder name
+        const noteTitle = `${folderPath} Index`;
+        
+        // Try to get the note if it already exists
+        let file = this.app.vault.getAbstractFileByPath(noteTitle + ".md");
+        
+        // If the note doesn't exist, create it
+        if (!file) {
+          file = await this.app.vault.create(noteTitle + ".md", "");
+          new Notice(`Note "${noteTitle}" created!`); // Show a notification
+        }
+        
+        // Get the reference to the folder we want to scan
+        const folder = this.app.vault.getAbstractFileByPath(folderPath);
+        
+        // Check if the folder exists and is actually a folder
+        if (folder && folder instanceof TFolder) {
+          // Generate a formatted, hierarchical list of files in the folder
+          const fileList = this.formatFolderStructure(folder, 0);
+          
+          // Create content with just a brief description and the file list
+          // Removed the redundant header since the note title already contains this information
+          const content = `This is an auto-generated index of files in the ${folderPath} folder.\n\n${fileList}`;
+          
+          // Update the content of the note with the file list
+          await this.app.vault.modify(file as TFile, content);
+          new Notice(`Note "${noteTitle}" updated with file list from "${folderPath}".`);
+        } else {
+          // Show an error notification if the folder doesn't exist or is empty
+          new Notice(`Folder "${folderPath}" not found or is empty.`);
+        }
+      }
+      
+      new Notice(`All index notes have been generated or updated.`);
+    });
+    
+    // Add a CSS class to the ribbon icon for styling purposes
+    ribbonIconEl.addClass('my-plugin-ribbon-class');
+  }
+  
+  // Helper method to format the folder structure recursively
+  formatFolderStructure(folder: TFolder, indentLevel: number): string {
+    // Calculate the indentation based on the level in the folder hierarchy
+    // Using 4 spaces per indent level as requested
+    const indent = '    '.repeat(indentLevel);
+    
+    // Start with the folder name
+    let fileList = `${indent}- ${folder.name}\n`;
+    
+    // Iterate through each child in the folder
+    for (const child of folder.children) {
+      if (child instanceof TFolder) {
+        // If the child is a folder, recursively format its structure
+        // and increase the indent level
+        fileList += this.formatFolderStructure(child, indentLevel + 1);
+      } else if (child instanceof TFile && child.extension === 'md') {
+        // If the child is a markdown file, create a clickable Obsidian link
+        // Remove the .md extension for cleaner display
+        const fileNameWithoutExtension = child.name.replace('.md', '');
+        // Create a WikiLink format that Obsidian uses: [[filename]]
+        const fileLink = `[[${fileNameWithoutExtension}]]`;
+        // Add the link to the list with proper indentation using the same 4-space indent
+        fileList += `${indent}    + ${fileLink}\n`;
+      }
+    }
+    
+    return fileList;
+  }
+  
+  // The onunload method is called when the plugin is disabled or uninstalled
+  onunload() {
+    // Any cleanup code would go here if needed
+  }
 }
 
-const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
-}
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+// The following is to make a canvas view -- FUTURE USE
+// import { App, Notice, Plugin, TFile, TFolder } from 'obsidian';
 
-	async onload() {
-		await this.loadSettings();
+// interface CanvasNode {
+//   id: string;
+//   x: number;
+//   y: number;
+//   width: number;
+//   height: number;
+//   type: string;
+//   text?: string;
+//   file?: string;
+// }
 
-		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
-		// Perform additional things with the ribbon
-		ribbonIconEl.addClass('my-plugin-ribbon-class');
+// interface CanvasEdge {
+//   id: string;
+//   fromNode: string;
+//   fromSide: string;
+//   toNode: string;
+//   toSide: string;
+// }
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status Bar Text');
+// export default class CustomIndexGeneratorPlugin extends Plugin {
+//   async onload() {
+//     const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', async (evt: MouseEvent) => {
+//       const canvasFileName = "Canvas View.canvas"; // Change this to the desired canvas file name
+//       const folderPath = "Resources"; // Change this to your target folder path
 
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-sample-modal-simple',
-			name: 'Open sample modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'sample-editor-command',
-			name: 'Sample editor command',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				console.log(editor.getSelection());
-				editor.replaceSelection('Sample Editor Command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-sample-modal-complex',
-			name: 'Open sample modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
+//       // Get or create the canvas file
+//       let file = this.app.vault.getAbstractFileByPath(canvasFileName);
+//       if (!file) {
+//         file = await this.app.vault.create(canvasFileName, "");
+//         new Notice(`Canvas file "${canvasFileName}" created!`);
+//       }
 
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-			}
-		});
+//       // Get the list of Markdown files in the folder and format it as a canvas view
+//       const folder = this.app.vault.getAbstractFileByPath(folderPath);
+//       if (folder && folder instanceof TFolder) {
+//         const canvasData = this.createCanvasData(folder, 0, -30, -30);
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
+//         // Write the canvas data to the file
+//         await this.app.vault.modify(file as TFile, JSON.stringify(canvasData, null, 2));
+//         new Notice(`Canvas file "${canvasFileName}" updated with canvas view from "${folderPath}".`);
+//       } else {
+//         new Notice(`Folder "${folderPath}" not found or is empty.`);
+//       }
+//     });
 
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
-		});
+//     ribbonIconEl.addClass('my-plugin-ribbon-class');
+//   }
 
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
-	}
+//   createCanvasData(folder: TFolder, x: number, y: number, indentLevel: number) {
+//     const nodes: CanvasNode[] = [];
+//     const edges: CanvasEdge[] = [];
+//     let nodeId = 0;
+    
+//     const createNode = (name: string, x: number, y: number, type: string, file?: string): CanvasNode => {
+//       return {
+//         id: `node-${nodeId++}`,
+//         x: x,
+//         y: y,
+//         width: 250,
+//         height: 60,
+//         type: type,
+//         text: type === 'text' ? name : undefined,
+//         file: file
+//       };
+//     };
 
-	onunload() {
+//     const addFolderNodes = (folder: TFolder, x: number, y: number, indentLevel: number, parentNodeId: string) => {
+//       const folderNode = createNode(folder.name, x, y, 'text');
+//       nodes.push(folderNode);
+//       if (parentNodeId) {
+//         edges.push({
+//           id: `edge-${nodeId++}`,
+//           fromNode: parentNodeId,
+//           fromSide: "bottom",
+//           toNode: folderNode.id,
+//           toSide: "top"
+//         });
+//       }
 
-	}
+//       let currentY = y + 100; // Increase spacing for subfolders and files
+//       for (const child of folder.children) {
+//         if (child instanceof TFolder) {
+//           currentY = addFolderNodes(child, x + 300, currentY, indentLevel + 1, folderNode.id); // Increase x-spacing for subfolders
+//         } else if (child instanceof TFile && child.extension === 'md') {
+//           const fileNode = createNode(child.name.replace('.md', ''), x + 300, currentY, 'file', child.path); // Adjust x-spacing for files
+//           nodes.push(fileNode);
+//           edges.push({
+//             id: `edge-${nodeId++}`,
+//             fromNode: folderNode.id,
+//             fromSide: "bottom",
+//             toNode: fileNode.id,
+//             toSide: "top"
+//           });
+//           currentY += 100;
+//         }
+//       }
+//       return currentY;
+//     };
 
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-	}
+//     addFolderNodes(folder, x, y, indentLevel, "");
+//     return { nodes, edges };
+//   }
 
-	async saveSettings() {
-		await this.saveData(this.settings);
-	}
-}
-
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
-
-	onOpen() {
-		const {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
-
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
-	}
-}
-
-class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
-
-	constructor(app: App, plugin: MyPlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
-	}
-
-	display(): void {
-		const {containerEl} = this;
-
-		containerEl.empty();
-
-		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
-	}
-}
+//   onunload() {
+//     // Any cleanup if necessary
+//   }
+// }
