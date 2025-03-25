@@ -6,86 +6,86 @@ export default class CustomIndexGeneratorPlugin extends Plugin {
 
   // The onload method is called when the plugin is loaded by Obsidian
   async onload() {
-    // Add a ribbon icon to the Obsidian interface
-    // 'sheets-in-box' is the icon name, 'Sample Plugin' is the hover text
-    const ribbonIconEl = this.addRibbonIcon('sheets-in-box', 'Sample Plugin', async (evt: MouseEvent) => {
-      // Array of folder paths to scan
-      const folderPaths = ["Resources", "General", "Areas", "Archives", "Clippings", "Projects"];
-      
-      // Process each folder in the array
-      for (const folderPath of folderPaths) {
-        // The note title will match the folder name
-        const noteTitle = `${folderPath} Index`;
-        
-        // Try to get the note if it already exists
-        let file = this.app.vault.getAbstractFileByPath(noteTitle + ".md");
-        
-        // If the note doesn't exist, create it
-        if (!file) {
-          file = await this.app.vault.create(noteTitle + ".md", "");
-          new Notice(`Note "${noteTitle}" created!`); // Show a notification
-        }
-        
-        // Get the reference to the folder we want to scan
-        const folder = this.app.vault.getAbstractFileByPath(folderPath);
-        
-        // Check if the folder exists and is actually a folder
-        if (folder && folder instanceof TFolder) {
-          // Generate a formatted, hierarchical list of files in the folder
-          const fileList = this.formatFolderStructure(folder, 0);
-          
-          // Create content with just a brief description and the file list
-          // Removed the redundant header since the note title already contains this information
-          const content = `This is an auto-generated index of files in the ${folderPath} folder.\n\n${fileList}`;
-          
-          // Update the content of the note with the file list
-          await this.app.vault.modify(file as TFile, content);
-          new Notice(`Note "${noteTitle}" updated with file list from "${folderPath}".`);
-        } else {
-          // Show an error notification if the folder doesn't exist or is empty
-          new Notice(`Folder "${folderPath}" not found or is empty.`);
-        }
-      }
-      
-      new Notice(`All index notes have been generated or updated.`);
-    });
-    
-    // Add a CSS class to the ribbon icon for styling purposes
-    ribbonIconEl.addClass('my-plugin-ribbon-class');
-  }
+    console.log("Index Generator Plugin: Starting onload");
   
+    try {
+      // Add a ribbon icon to the Obsidian interface
+      console.log("Adding ribbon icon...");
+      const ribbonIconEl = this.addRibbonIcon('sheets-in-box', 'Sample Plugin', async (evt: MouseEvent) => {
+        console.log("Ribbon icon clicked!");
+  
+        // Array of folder paths to scan
+        const folderPaths = ["Resources", "General", "Areas", "Archives", "Clippings", "Projects"];
+  
+        // Process each folder in the array
+        for (const folderPath of folderPaths) {
+          const noteTitle = `${folderPath} Index`;
+          console.log(`Processing folder: ${folderPath}, note title: ${noteTitle}`);
+  
+          // Try to get the note if it already exists
+          let file = this.app.vault.getAbstractFileByPath(noteTitle + ".md");
+          if (!file) {
+            file = await this.app.vault.create(noteTitle + ".md", "");
+            new Notice(`Note "${noteTitle}" created!`);
+            console.log(`Note "${noteTitle}" created!`);
+          }
+  
+          const folder = this.app.vault.getAbstractFileByPath(folderPath);
+          if (folder && folder instanceof TFolder) {
+            const fileList = this.formatFolderStructure(folder, 0);
+            const content = `This is an auto-generated index of files in the ${folderPath} folder.\n\n${fileList}`;
+            await this.app.vault.modify(file as TFile, content);
+            new Notice(`Note "${noteTitle}" updated with file list from "${folderPath}".`);
+            console.log(`Updated "${noteTitle}" with file list from "${folderPath}".`);
+          } else {
+            new Notice(`Folder "${folderPath}" not found or is empty.`);
+            console.error(`Folder "${folderPath}" not found or is empty.`);
+          }
+        }
+  
+        new Notice(`All index notes have been generated or updated.`);
+        console.log("All index notes have been generated or updated.");
+      });
+  
+      ribbonIconEl.addClass('my-plugin-ribbon-class');
+      console.log("Ribbon icon added successfully.");
+    } catch (error) {
+      console.error("Error during plugin initialization:", error);
+    }
+  
+    console.log("Index Generator Plugin: Finished onload");
+  }
+    
   // Helper method to format the folder structure recursively
   formatFolderStructure(folder: TFolder, indentLevel: number): string {
-    // Calculate the indentation based on the level in the folder hierarchy
-    // Using 4 spaces per indent level as requested
     const indent = '    '.repeat(indentLevel);
-    
-    // Start with the folder name
+
+    // Sort the children alphabetically by name
+    const sortedChildren = [...folder.children].sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+
     let fileList = `${indent}- ${folder.name}\n`;
-    
-    // Iterate through each child in the folder
-    for (const child of folder.children) {
+
+    // Iterate through the sorted children
+    for (const child of sortedChildren) {
       if (child instanceof TFolder) {
-        // If the child is a folder, recursively format its structure
-        // and increase the indent level
         fileList += this.formatFolderStructure(child, indentLevel + 1);
       } else if (child instanceof TFile && child.extension === 'md') {
-        // If the child is a markdown file, create a clickable Obsidian link
-        // Remove the .md extension for cleaner display
         const fileNameWithoutExtension = child.name.replace('.md', '');
-        // Create a WikiLink format that Obsidian uses: [[filename]]
         const fileLink = `[[${fileNameWithoutExtension}]]`;
-        // Add the link to the list with proper indentation using the same 4-space indent
         fileList += `${indent}    + ${fileLink}\n`;
       }
     }
-    
+
     return fileList;
   }
   
   // The onunload method is called when the plugin is disabled or uninstalled
-  onunload() {
+  async onunload() {
     // Any cleanup code would go here if needed
+      console.log("Index Generator Plugin: Unloaded");
+  
   }
 }
 
